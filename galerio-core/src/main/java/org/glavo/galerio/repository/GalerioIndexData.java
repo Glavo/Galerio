@@ -1,8 +1,13 @@
 package org.glavo.galerio.repository;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonIncludeProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import org.apache.commons.io.IOUtils;
+import org.glavo.galerio.util.HexUtils;
+import org.glavo.galerio.util.SerializationUtils;
+
+import java.io.*;
 import java.util.Arrays;
 import java.util.Objects;
 
@@ -12,12 +17,15 @@ import java.util.Objects;
  * 当文件大小小于等于 32 字节时，将文件内容内联存储在 {@link #fileHashOrData} 中；
  * 当文件大小大于 32 字节时，文件内容存储在存储池中。
  */
-@SuppressWarnings("PointlessBitwiseExpression")
+@JsonIncludeProperties({"fileSize", "fileHashOrData"})
 public final class GalerioIndexData {
     private final long fileSize;
     private final byte[] fileHashOrData; // size == 32
 
-    public GalerioIndexData(long fileSize, byte[] fileHashOrData) {
+    @JsonCreator
+    public GalerioIndexData(
+            @JsonProperty("fileSize") long fileSize,
+            @JsonProperty("fileHashOrData") byte[] fileHashOrData) {
         assert fileHashOrData.length == Long.min(fileSize, 32);
 
         this.fileSize = fileSize;
@@ -32,8 +40,17 @@ public final class GalerioIndexData {
         return fileHashOrData;
     }
 
+    public String getFileHashAsString() {
+        assert !isInlined();
+        return HexUtils.toHexString(fileHashOrData);
+    }
+
     public boolean isInlined() {
         return fileSize <= 32;
+    }
+
+    public String getPoolName() {
+        return HexUtils.toHexString((byte) (fileSize % 256));
     }
 
     @Override
@@ -60,30 +77,13 @@ public final class GalerioIndexData {
         return String.format("GalerioIndexData[fileSize=%d, fileHashOrData=%s]", fileSize, Arrays.toString(fileHashOrData));
     }
 
-    public void writeTo(OutputStream output) throws IOException {
-        // Write File Size
-        output.write((byte) (fileSize >>> 56));
-        output.write((byte) (fileSize >>> 48));
-        output.write((byte) (fileSize >>> 40));
-        output.write((byte) (fileSize >>> 32));
-        output.write((byte) (fileSize >>> 24));
-        output.write((byte) (fileSize >>> 16));
-        output.write((byte) (fileSize >>> 8));
-        output.write((byte) (fileSize >>> 0));
-
+    public void writeTo(DataOutputStream output) throws IOException {
+        output.writeLong(fileSize);
         output.write(fileHashOrData);
     }
 
-    public static GalerioIndexData readFrom(InputStream input) throws IOException {
-        long fileSize = (((long) input.read() << 56) +
-                ((long) (input.read() & 255) << 48) +
-                ((long) (input.read() & 255) << 40) +
-                ((long) (input.read() & 255) << 32) +
-                ((long) (input.read() & 255) << 24) +
-                ((input.read() & 255) << 16) +
-                ((input.read() & 255) << 8) +
-                ((input.read() & 255) << 0));
-
+    public static GalerioIndexData readFrom(DataInputStream input) throws IOException {
+        long fileSize = input.readLong();
         if (fileSize < 0) {
             throw new IOException();
         }

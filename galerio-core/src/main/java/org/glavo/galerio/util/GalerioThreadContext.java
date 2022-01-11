@@ -1,27 +1,27 @@
 package org.glavo.galerio.util;
 
-import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 
 public final class GalerioThreadContext {
-    private static final ThreadLocal<GalerioThreadContext> threadLocalContext = ThreadLocal.withInitial(GalerioThreadContext::new);
+    // private static final ThreadLocal<GalerioThreadContext> threadLocalContext = ThreadLocal.withInitial(GalerioThreadContext::new);
 
     public static GalerioThreadContext current() {
-        return threadLocalContext.get();
+        // return threadLocalContext.get();
+        return ((GalerioThread) Thread.currentThread()).context;
     }
 
-    private final ByteBuffer inputBuffer = ByteBuffer.allocate(IOUtils.BUFFER_SIZE);
-    private ByteBuffer outputBuffer;
+    private final byte[] inputBuffer = new byte[FileUtils.BUFFER_SIZE];
+    private byte[] outputBuffer;
 
     private final MessageDigest sha256Digest = MessageDigestUtils.getSHA256Instance();
 
-    public ByteBuffer getInputBuffer() {
+    public byte[] getInputBuffer() {
         return inputBuffer;
     }
 
-    public ByteBuffer getOutputBuffer() {
+    public byte[] getOutputBuffer() {
         if (outputBuffer == null) {
-            outputBuffer = ByteBuffer.allocate(IOUtils.BUFFER_SIZE);
+            outputBuffer = new byte[FileUtils.BUFFER_SIZE];
         }
         return outputBuffer;
     }
